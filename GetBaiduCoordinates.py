@@ -105,8 +105,6 @@ def get_roads_coordinates(geojson_path, output_path):
                         nodes_index_hashmap[coord_baidu_str] = nodes_index
                     else:   #节点已出现过，查之前出现的索引
                         count_repeat += 1
-                        if( count_repeat % 10 == 0):
-                            print("count_repeat" + str(count_repeat))
                         node_index_now = quiry_index
 
                     if (index != 0) :
