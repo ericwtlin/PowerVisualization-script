@@ -16,6 +16,7 @@ import codecs
 import random
 import pickle
 import time
+from nltk.sem.hole import Constraint
 
 def convert_coordinates(source_coords, ak='ObH1Tg4eoPWctNEOP9RlxZKf', trans_from='1', trans_to='5', output='json'):
     '''转换坐标，默认将GPS坐标转换成百度坐标
@@ -38,12 +39,12 @@ def convert_coordinates(source_coords, ak='ObH1Tg4eoPWctNEOP9RlxZKf', trans_from
     return result
     
         
-def get_roads_coordinates(geojson_path, output_path, pickle_path = 'data.pkl'):
+def get_roads_coordinates(geojson_path, output_path,  pickle_path = 'data.pkl', coord_constraints = 'null'):
     '''从道路数据geojson中取出所需大路的坐标数据，生成echarts需要的格式
     Arguments:
         geojson_path    输入的json文件
-        #begin_from_line_num    表示从geojson文件的第几行开始处理
         output_path    输出的echarts输入文件，json格式
+        constraints    坐标限制
         pickle_path    若出现异常，将状态信息等存到pickle文件里
     '''
     road_file = codecs.open(geojson_path, encoding='utf-8')
@@ -94,12 +95,30 @@ def get_roads_coordinates(geojson_path, output_path, pickle_path = 'data.pkl'):
                 if (road_data['properties']['type'] in road_types_needed):  # 只取出大路
                     coordinates_gps = road_data['geometry'] ['coordinates']
                     coord_gps_param = ''
-                    # 转换坐标
-                    for coord in coordinates_gps:
-                        if len(coord_gps_param) == 0:
-                            coord_gps_param = str(coord[0]) + ',' + str(coord[1])
-                        else:
-                            coord_gps_param = coord_gps_param + ';' + str(coord[0]) + ',' + str(coord[1])
+                    
+                    flag_out_range = False;
+                    if isinstance(coord_constraints, str) and coord_constraints == 'null':
+                        # 转换坐标
+                        for coord in coordinates_gps:
+                            if len(coord_gps_param) == 0:
+                                coord_gps_param = str(coord[0]) + ',' + str(coord[1])
+                            else:
+                                coord_gps_param = coord_gps_param + ';' + str(coord[0]) + ',' + str(coord[1])
+                    else:       #有经纬度限制条件
+                        # 转换坐标
+                        for coord in coordinates_gps:
+                            if not (coord[0] >= coord_constraints[0] and coord[0] <= coord_constraints[1] and \
+                                    coord[1] >= coord_constraints[2] and coord[1] <= coord_constraints[3]):
+                                flag_out_range = True
+                                break
+                            
+                            if len(coord_gps_param) == 0:
+                                coord_gps_param = str(coord[0]) + ',' + str(coord[1])
+                            else:
+                                coord_gps_param = coord_gps_param + ';' + str(coord[0]) + ',' + str(coord[1])
+                    
+                    if flag_out_range == True:
+                        continue
                     
                     #quiry_result = []
                     quiry_result = convert_coordinates(coord_gps_param)
@@ -182,18 +201,40 @@ def get_roads_coordinates(geojson_path, output_path, pickle_path = 'data.pkl'):
 
 
 def test():
-    pass
+    strs = "haha"
+
 
 def main():
-    #test()
-    
-    
-    #os.remove('data.pkl')
+    test()
+    '''
+    if os.path.exists("./GetBaiduCoordinates/data.pkl"):
+        os.remove("./GetBaiduCoordinates/data.pkl")
+    #获取完整的地图
     ret = 0
     while(ret != 1):
         ret = get_roads_coordinates("./GetBaiduCoordinates/BeijingRoads.json", "./GetBaiduCoordinates/data.json", "./GetBaiduCoordinates/data.pkl")
         if ret == 0:
             time.sleep(60)
+    '''
+    
+    #获取每个区县的数据
+    beijing_range_file = codecs.open('./GetBaiduCoordinates/beijing_range.json', encoding='utf-8')
+    strs = ""
+    for line in beijing_range_file:
+        strs = strs + line
+    beijing_range = json.loads(strs)
+    
+    for area in beijing_range.keys():
+        if os.path.exists("./GetBaiduCoordinates/data.pkl"):
+            os.remove("./GetBaiduCoordinates/data.pkl")
+        coord_constraints = beijing_range[area]['range']
+        ret = 0
+        while(ret != 1):
+            ret = get_roads_coordinates("./GetBaiduCoordinates/BeijingRoads.json", "./GetBaiduCoordinates/districts/" + area + ".json", "./GetBaiduCoordinates/data.pkl", coord_constraints)
+            if ret == 0:
+                time.sleep(60)
+    
+    
     
 if __name__ == "__main__":
     main()
